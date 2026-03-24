@@ -97,7 +97,7 @@ recursive          = false  # default recursive mode
 preserve_structure = false  # default structure mode
 skip_existing      = true   # skip files already on disk
 theme              = "amber"
-download_path      = "/home/you/Downloads"
+download_path      = "/home/user/Downloads"
 
 [auth]
 github_token   = "ghp_..."
