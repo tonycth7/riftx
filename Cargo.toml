@@ -1,0 +1,30 @@
+[package]
+name = "riftx"
+version = "0.0.3"
+edition = "2021"
+description = "Blazing-fast CLI to explore, filter & extract files from remote repositories — no clone needed"
+license = "MIT"
+repository = "https://github.com/your/riftx"
+keywords = ["github", "tui", "cli", "download", "git"]
+
+[[bin]]
+name = "riftx"
+path = "src/main.rs"
+
+[dependencies]
+ratatui    = "0.28"
+crossterm  = { version = "0.28", features = ["event-stream"] }
+tokio      = { version = "1",    features = ["full"] }
+reqwest    = { version = "0.12", features = ["json"] }
+serde      = { version = "1",    features = ["derive"] }
+serde_json = "1"
+dirs       = "5"
+futures-util = "0.3"
+anyhow     = "1"
+bytes      = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
