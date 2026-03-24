@@ -24,7 +24,8 @@
 ⎇ explore repos like branches<br>
 ⇣ no clone, just pull what you need<br>
 ⌁ minimal, fast, terminal-native<br>
----
+
+----
 
 ## Features
 
