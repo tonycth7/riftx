@@ -37,7 +37,7 @@ Press `T` to cycle, or set in config / `--theme` flag.
 ## Install
 
 ```sh
-cargo install --git https://github.com/your/riftx
+cargo install --git https://github.com/tonycth7/riftx
 ```
 
 Or build from source:
