@@ -1,166 +1,149 @@
-# riftx v0.0.3
+# riftx v0.0.7
 
-> ⚡ Blazing-fast CLI to explore, filter & extract files from remote repositories — **no clone needed.**
-> Runs on any terminal, including headless servers over SSH.
+Blazing-fast TUI to explore & extract files from remote repos — **no clone needed**.
 
-```
- ██████╗ ██╗███████╗████████╗██╗  ██╗
- ██╔══██╗██║██╔════╝╚══██╔══╝╚██╗██╔╝
- ██████╔╝██║█████╗     ██║    ╚███╔╝
- ██╔══██╗██║██╔══╝     ██║    ██╔██╗
- ██║  ██║██║██║        ██║   ██╔╝╚██╗
- ╚═╝  ╚═╝╚═╝╚═╝        ╚═╝   ╚═╝  ╚═╝
-```
-
-> *«⚡ A fast interface between you and remote code/data»*
-
-Built with **Rust · ratatui · tokio · reqwest**
-
----
-
-## Install
-
-```bash
-# From source
-git clone https://github.com/you/riftx
-cd riftx
-cargo build --release
-# binary at ./target/release/riftx
-
-# Or install via cargo
-cargo install riftx
-```
-
-## Quick start
-
-```bash
-# Open the TUI home screen
-riftx
-
-# Jump straight into a repo
-riftx https://github.com/rust-lang/rust
-
-# Short form also works
-riftx torvalds/linux
-
-# Set your GitHub token (increases rate limit from 60 → 5000 req/hr)
-riftx config set token ghp_xxxxxxxxxxxx
-
-# Set a custom download directory
-riftx config set path ~/Downloads/riftx
-
-# View current config
-riftx config list
-```
+Providers: **GitHub · GitLab · Codeberg · Gitea** (self-hosted)
 
 ---
 
 ## Features
 
-| Feature | Details |
-|---------|---------|
-| **Full-screen TUI** | Navigate any public (or private with token) GitHub repo |
-| **Inline file preview** | Read code side-by-side with the file list, with line numbers |
-| **Branch switcher** | Press `b` to pop up a branch list and switch instantly |
-| **Batch selection** | Space to toggle, `a` to select all, `u` to unselect |
-| **Batch download** | `d` downloads all selected files at once, async |
-| **Single download** | `D` downloads the highlighted file immediately |
-| **Directory navigation** | Enter dirs, go back with `h`/Backspace, breadcrumb trail shown |
-| **File filter / search** | Press `/` to fuzzy-filter files in the current directory |
-| **Copy raw URL** | `c` copies the raw GitHub URL to clipboard |
-| **Copy wget command** | `w` copies a ready-to-paste wget command |
-| **Persistent history** | Last 10 repos remembered, press `↑` on home to fill input |
-| **Config TUI** | Press `C` to open the settings screen in-app |
-| **Headless-safe** | Runs perfectly over SSH on servers with no GUI |
-| **Single binary** | No runtime deps — statically linkable |
+### 🔍 Browse
+- Fuzzy file search (`/`), extension filter (`%`), full-path search (`\`)
+- **Sort modes** — cycle with `S`: default (dirs-first) → name → size↓ → extension
+- **Size filter** — cycle with `f`: off → >1 KB → >100 KB → >1 MB
+- **Bookmarks / pins** — press `m` to pin important files (★ indicator in list)
+- Inline file preview with line numbers (`p`)
+- Branch switching (`b`), repo metadata (stars, language, private)
+- Autocomplete from history on the home screen (`1`–`6` to instant-load)
+- `n` key returns to home screen to load a new repo without quitting
+
+### ⬇️ Smart Download Engine
+- **Recursive folder download** — press `R` in the download plan
+- **Preserve directory structure** — press `S` in plan to recreate remote paths locally
+- **Skip existing files** — press `K` to avoid re-downloading
+- **Parallel downloads** — configurable concurrency (default: 8)
+- **Retry with exponential backoff** — up to `retry_count` times (default: 3)
+- **Live progress panel** — press `O` to see all downloads with animated spinner
+- **Instant single-file** — press `D` to download the highlighted file immediately
+
+### 🎨 Themes
+`amber` · `dracula` · `nord` · `gruvbox` · `catppuccin` · `skyblue` · `tokyonight` · `ayu`
+
+Press `T` to cycle, or set in config / `--theme` flag.
 
 ---
 
-## Keyboard reference
+## Install
 
-### Home screen
+```sh
+cargo install --git https://github.com/your/riftx
+```
 
+Or build from source:
+
+```sh
+cargo build --release
+./target/release/riftx
+```
+
+---
+
+## Usage
+
+```
+riftx [URL]                   Launch TUI (home screen)
+riftx browse <URL>            Browse a repo directly
+riftx get    <URL>            Alias for browse
+riftx config set   <key> <v> Save a config value
+riftx config unset <key>     Remove a config value
+riftx config list             Show current config
+riftx --theme <n>             Override theme at launch
+riftx --ext   <ext>           Pre-filter by extension
+```
+
+---
+
+## Config
+
+Located at `~/.config/riftx/config.toml`:
+
+```toml
+[core]
+parallel           = 8      # max concurrent downloads
+retry_count        = 3      # retries per failed file
+recursive          = false  # default recursive mode
+preserve_structure = false  # default structure mode
+skip_existing      = true   # skip files already on disk
+theme              = "amber"
+download_path      = "/home/you/Downloads"
+
+[auth]
+github_token   = "ghp_..."
+gitlab_token   = "glpat_..."
+codeberg_token = "..."
+gitea_token    = "..."
+gitea_url      = "https://git.example.com"
+```
+
+Tokens are also read from env vars: `GITHUB_TOKEN`, `GITLAB_TOKEN`, `CODEBERG_TOKEN`, `GITEA_TOKEN`, `GITEA_URL`.
+
+---
+
+## Key Bindings
+
+### Home Screen
 | Key | Action |
 |-----|--------|
-| Type | Build the repo URL |
 | `Enter` | Load repo |
-| `↑` | Fill input with most recent history |
-| `C` | Open config |
-| `q` / `Esc` | Quit |
+| `Tab / →` | Accept autocomplete |
+| `↑ / ↓` | Navigate suggestions / history |
+| `1`–`6` | Instantly load recent repo |
+| `T` | Cycle theme |
+| `C` | Config screen |
+| `q / Esc` | Quit |
 
 ### Browser
-
 | Key | Action |
 |-----|--------|
-| `j` / `k` / `↑↓` | Navigate up / down |
-| `Enter` / `l` / `→` | Enter directory or preview file |
-| `h` / `Backspace` / `←` | Go back |
-| `g` / `Home` | Jump to top |
-| `G` / `End` | Jump to bottom |
-| `Ctrl+d` / `Ctrl+u` | Page down / up |
-| `Space` | Toggle select current item |
-| `a` | Select all visible items |
-| `u` | Unselect all |
-| `d` | Download selected (or current file if none selected) |
-| `D` | Download current file immediately |
-| `p` | Toggle inline preview pane |
-| `c` | Copy raw URL to clipboard |
-| `w` | Copy wget command to clipboard |
-| `/` | Filter files in current directory |
-| `r` | Refresh current directory |
-| `b` | Open branch switcher |
-| `C` | Open config screen |
-| `?` | Show help popup |
-| `Esc` | Close preview → go back → home |
-| `q` | Back to root / quit |
-| `Ctrl+C` | Force quit |
+| `j/k ↑↓` | Navigate |
+| `Enter/l →` | Enter dir / preview file |
+| `h/Bksp ←` | Go back |
+| `g / G` | Top / bottom |
+| `Ctrl+d / u` | Page down / up |
+| `n` | New repo (go to home) |
+| `Space` | Toggle select |
+| `a / u / i` | Select all / none / invert |
+| `/` | Fuzzy search by name |
+| `%` | Filter by extension |
+| `\` | Search by full path |
+| `x` | Clear all filters |
+| `S` | Cycle sort mode (default→name→size↓→ext) |
+| `f` | Cycle size filter (off→1K→100K→1M) |
+| `m` | Toggle bookmark / pin |
+| `d` | Download plan popup |
+| `D` | Instant download current file |
+| `O` | Downloads progress panel |
+| `p` | Toggle inline preview |
+| `c / w` | Copy raw URL / wget command |
+| `r` | Refresh directory |
+| `b` | Switch branch |
+| `T` | Cycle theme |
+| `C` | Config screen |
+| `?` | Help |
+| `q / Esc` | Back / quit |
 
-### Preview pane
-
+### In Download Plan
 | Key | Action |
 |-----|--------|
-| `Ctrl+j` / `Ctrl+k` | Scroll preview down / up |
-| `p` | Close preview |
+| `R` | Toggle recursive folder expansion |
+| `S` | Toggle preserve directory structure |
+| `K` | Toggle skip existing files |
+| `Enter / y` | Execute plan |
+| `Esc / n` | Cancel |
 
----
-
-## Configuration
-
-Config is stored at `~/.config/riftx/config.json`.
-
-```json
-{
-  "token": "ghp_...",
-  "download_path": "/home/you/Downloads",
-  "history": [...]
-}
-```
-
-Set values from the CLI or via the in-app config screen (`C`):
-
-```bash
-riftx config set token ghp_xxxx   # GitHub personal access token
-riftx config set path ~/Downloads  # Download destination
-riftx config unset token           # Remove token
-riftx config list                  # Show current config
-```
-
----
-
-## Roadmap
-
-| Phase | Provider / Feature |
-|-------|--------------------|
-| ✅ v0.0.3 | GitHub — full TUI browser, preview, download, branch switch |
-| 🔜 v0.1.x | GitLab, Bitbucket via Provider trait |
-| 🔜 v0.2.x | Gitea (self-hosted), raw HTTP directories |
-| 🔜 v0.3.x | ZIP/TAR URL extraction, caching layer, resume downloads |
-| 🔜 future | Plugin system, S3, IPFS, public datasets |
-
----
-## Acknowledgements
-
-Inspired by [ghgrab](https://github.com/abhixdd/ghgrab), reimagined with a focus on performance, control, and extensibility.
-## License
-
-MIT
+### In Downloads Panel
+| Key | Action |
+|-----|--------|
+| `c` | Clear completed / failed entries |
+| `Esc / O / q` | Close panel |

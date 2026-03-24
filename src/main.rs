@@ -1,6 +1,8 @@
 mod app;
 mod config;
-mod github;
+mod fuzzy;
+mod providers;
+mod theme;
 mod ui;
 
 use std::time::Duration;
@@ -16,106 +18,139 @@ use tokio::sync::mpsc;
 use app::{App, Msg};
 use config::Config;
 
-// ─── CLI args ─────────────────────────────────────────────────────────────────
+struct Args {
+    url:        Option<String>,
+    ext_filter: Option<String>,
+    theme:      Option<String>,
+}
 
-fn parse_args() -> Option<String> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+fn parse_args() -> Args {
+    let raw: Vec<String> = std::env::args().skip(1).collect();
 
-    if args.iter().any(|a| a == "--help" || a == "-h") {
-        print_usage();
-        std::process::exit(0);
-    }
-
-    if args.iter().any(|a| a == "--version" || a == "-V") {
+    if raw.iter().any(|a| a == "--help" || a == "-h") { print_usage(); std::process::exit(0); }
+    if raw.iter().any(|a| a == "--version" || a == "-V") {
         println!("riftx {}", env!("CARGO_PKG_VERSION"));
         std::process::exit(0);
     }
-
-    if args.first().map(|s| s.as_str()) == Some("config") {
-        handle_config_cmd(&args[1..]);
-        std::process::exit(0);
+    if raw.first().map(|s| s.as_str()) == Some("config") {
+        handle_config_cmd(&raw[1..]); std::process::exit(0);
     }
 
-    args.into_iter().find(|a| !a.starts_with('-'))
+    let mut url:    Option<String> = None;
+    let mut ext:    Option<String> = None;
+    let mut theme:  Option<String> = None;
+    let mut it = raw.iter().peekable();
+
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "browse" | "get" | "sync" => { url = it.next().cloned(); }
+            "--ext"   => { ext   = it.next().cloned(); }
+            "--theme" => { theme = it.next().cloned(); }
+            s if s.starts_with("--ext=")   => { ext   = Some(s[6..].to_string()); }
+            s if s.starts_with("--theme=") => { theme = Some(s[8..].to_string()); }
+            s if !s.starts_with('-')       => { url   = Some(s.to_string()); }
+            _ => {}
+        }
+    }
+    Args { url, ext_filter: ext, theme }
 }
 
 fn print_usage() {
-    println!(
-        r#"riftx {} — explore & extract files from remote repos without cloning
+    println!(r#"riftx {} — explore & extract files from remote repos
+
+PROVIDERS:  GitHub · GitLab · Codeberg · Gitea (self-hosted)
 
 USAGE:
-  riftx [URL]               Launch TUI (optionally open a repo directly)
-  riftx config set token T  Save your GitHub token (5000 req/hr vs 60)
-  riftx config set path  P  Set default download directory
-  riftx config list         Show current configuration
-  riftx config unset token  Remove saved token
-  riftx config unset path   Reset download path to default
-  riftx --help              Show this message
-  riftx --version           Print version
+  riftx [URL]                   Launch TUI
+  riftx browse <URL>            Browse a repo
+  riftx get    <URL>            Open repo (alias)
+  riftx config set   <key> <v> Save config value
+  riftx config unset <key>     Remove config value
+  riftx config list             Show config
+  riftx --theme <n>             Override theme at launch
+  riftx --ext   <ext>           Pre-filter by extension
 
-KEYS (inside TUI):
-  j/k ↑↓     navigate       Space  toggle select
-  Enter/l    enter dir       a      select all
-  h/Bksp     go back         u      unselect all
-  d          download sel    D      download current
-  p          preview file    c      copy raw URL
-  w          copy wget cmd   /      filter files
-  b          switch branch   r      refresh dir
-  ?          help popup      C      config
-  q/Esc      back/quit       Ctrl+C force quit
+THEMES:  amber  dracula  nord  gruvbox  catppuccin  skyblue  tokyonight  ayu
 
-PROVIDERS (Phase 1):
-  GitHub — https://github.com/owner/repo
-"#,
-        env!("CARGO_PKG_VERSION")
-    );
+KEYS (TUI):
+  j/k ↑↓    navigate     Space  toggle select
+  Enter/l    enter dir    a/u/i  all/none/invert
+  d          plan popup   D      download now
+  p          preview      c/w    copy URL/wget
+  /  %  \   search name/ext/path
+  b          branches     r      refresh
+  T          cycle theme  C      config
+  S          cycle sort   f      size filter
+  n          new repo     m      bookmark
+  ?          help         q/Esc  quit
+"#, env!("CARGO_PKG_VERSION"));
 }
 
 fn handle_config_cmd(args: &[String]) {
     let mut cfg = Config::load();
     match args {
         [cmd] if cmd == "list" => {
-            let token = cfg.token.as_deref().map(|t| {
-                if t.len() > 8 { format!("{}...{}", &t[..4], &t[t.len()-4..]) }
-                else { "****".to_string() }
-            }).unwrap_or_else(|| "(not set)".to_string());
-            let path = cfg.download_path.as_ref()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| "(default)".to_string());
-            println!("token  : {token}");
-            println!("path   : {path}");
+            println!("[core]");
+            println!("  theme        = {}", cfg.core.theme.as_str());
+            println!("  parallel     = {}", cfg.core.parallel);
+            println!("  download     = {}", cfg.core.download_path.as_ref()
+                .map(|p| p.display().to_string()).unwrap_or_else(|| "(default)".into()));
+            println!("\n[auth]");
+            for (k, v) in [
+                ("github_token",   &cfg.auth.github_token),
+                ("gitlab_token",   &cfg.auth.gitlab_token),
+                ("codeberg_token", &cfg.auth.codeberg_token),
+                ("gitea_token",    &cfg.auth.gitea_token),
+                ("gitea_url",      &cfg.auth.gitea_url),
+            ] {
+                let display = v.as_deref().map(|t| {
+                    if k.ends_with("token") && t.len() > 8 {
+                        format!("{}…{}", &t[..4], &t[t.len()-4..])
+                    } else { t.to_string() }
+                }).unwrap_or_else(|| "(not set)".into());
+                println!("  {k:<20} = {display}");
+            }
         }
         [cmd, key, val] if cmd == "set" => {
             match key.as_str() {
-                "token" => { cfg.token = Some(val.clone()); println!("✓ token saved"); }
-                "path"  => {
-                    cfg.download_path = Some(std::path::PathBuf::from(val));
-                    println!("✓ path saved");
-                }
-                other   => eprintln!("unknown key '{other}'  (use: token | path)"),
+                "github_token"   => cfg.auth.github_token   = Some(val.clone()),
+                "gitlab_token"   => cfg.auth.gitlab_token   = Some(val.clone()),
+                "codeberg_token" => cfg.auth.codeberg_token = Some(val.clone()),
+                "gitea_token"    => cfg.auth.gitea_token    = Some(val.clone()),
+                "gitea_url"      => cfg.auth.gitea_url      = Some(val.clone()),
+                "theme"          => cfg.core.theme          = config::ThemeName::from_str(val),
+                "parallel"       => if let Ok(n) = val.parse::<u8>() { cfg.core.parallel = n; },
+                "path"           => cfg.core.download_path  = Some(std::path::PathBuf::from(val)),
+                other            => { eprintln!("unknown key: {other}"); return; }
             }
             cfg.save();
+            println!("✓ {key} = {val}");
         }
         [cmd, key] if cmd == "unset" => {
             match key.as_str() {
-                "token" => { cfg.token = None; println!("✓ token removed"); }
-                "path"  => { cfg.download_path = None; println!("✓ path reset to default"); }
-                other   => eprintln!("unknown key '{other}'"),
+                "github_token"   => cfg.auth.github_token   = None,
+                "gitlab_token"   => cfg.auth.gitlab_token   = None,
+                "codeberg_token" => cfg.auth.codeberg_token = None,
+                "gitea_token"    => cfg.auth.gitea_token    = None,
+                "gitea_url"      => cfg.auth.gitea_url      = None,
+                "path"           => cfg.core.download_path  = None,
+                other            => { eprintln!("unknown key: {other}"); return; }
             }
             cfg.save();
+            println!("✓ {key} unset");
         }
-        _ => {
-            eprintln!("usage: riftx config [set token|path <val>] [unset token|path] [list]");
-        }
+        _ => eprintln!("usage: riftx config [list | set <key> <val> | unset <key>]"),
     }
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-
 #[tokio::main]
 async fn main() -> Result<()> {
-    let url_arg = parse_args();
-    let config  = Config::load();
+    let args   = parse_args();
+    let mut cfg = Config::load();
+
+    if let Some(ref t) = args.theme {
+        cfg.core.theme = config::ThemeName::from_str(t);
+    }
 
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -124,39 +159,38 @@ async fn main() -> Result<()> {
     let mut term = Terminal::new(backend)?;
     term.clear()?;
 
-    let result = run(&mut term, config, url_arg).await;
+    let result = run(&mut term, cfg, args).await;
 
     disable_raw_mode()?;
     execute!(term.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     term.show_cursor()?;
 
-    if let Err(e) = result {
-        eprintln!("error: {e}");
-        std::process::exit(1);
-    }
+    if let Err(e) = result { eprintln!("error: {e}"); std::process::exit(1); }
     Ok(())
 }
 
-// ─── Event loop ───────────────────────────────────────────────────────────────
-
 async fn run(
-    term:    &mut Terminal<CrosstermBackend<std::io::Stdout>>,
-    config:  Config,
-    url_arg: Option<String>,
+    term:   &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+    config: Config,
+    args:   Args,
 ) -> Result<()> {
     let (tx, mut rx) = mpsc::channel::<Msg>(64);
     let mut app = App::new(tx, config);
 
-    if let Some(url) = url_arg {
-        if let Some((owner, repo)) = github::parse_url(&url) {
-            app.do_load_repo(owner, repo);
+    if let Some(ext) = args.ext_filter { app.ext_filter = Some(ext); }
+
+    if let Some(url) = args.url {
+        let gitea_inst = app.config.auth.gitea_url.clone();
+        if let Some((kind, owner, repo, inst)) =
+            providers::parse_url(&url, gitea_inst.as_deref())
+        {
+            app.do_load_repo(kind, owner, repo, inst);
         } else {
-            app.error = Some(format!("not a valid GitHub URL: {url}"));
+            app.error = Some(format!("invalid URL: {url}"));
         }
     }
 
     let tick = Duration::from_millis(50);
-
     loop {
         term.draw(|f| ui::draw(f, &mut app))?;
 
@@ -164,7 +198,6 @@ async fn run(
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
                     if app.handle_key(key.code, key.modifiers) {
-                        app.config.history = app.history.clone();
                         app.config.save();
                         break;
                     }
@@ -173,11 +206,7 @@ async fn run(
                 _ => {}
             }
         }
-
-        while let Ok(msg) = rx.try_recv() {
-            app.handle_msg(msg);
-        }
+        while let Ok(msg) = rx.try_recv() { app.handle_msg(msg); }
     }
-
     Ok(())
 }
