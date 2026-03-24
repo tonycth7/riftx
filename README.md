@@ -1,9 +1,29 @@
-# riftx v0.0.7
+<div align="center">
 
-Blazing-fast TUI to explore & extract files from remote repos — **no clone needed**.
+# ⎇ riftX
 
-Providers: **GitHub · GitLab · Codeberg · Gitea** (self-hosted)
+<p>
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=500&size=24&duration=2400&pause=1000&color=CBA6F7&center=true&vCenter=true&width=700&lines=Blazing-fast+repo+explorer;No+clone+needed;Search+%2F+Download+%2F+Extract;Built+for+terminal+power+users" />
+</p>
+<p>
+  <img src="https://img.shields.io/badge/Rust-1.70%2B-orange?logo=rust">
+  <img src="https://img.shields.io/github/stars/tonycth7/riftx?style=flat">
+  <img src="https://img.shields.io/github/license/tonycth7/riftx">
+  <img src="https://img.shields.io/badge/TUI-Power-black">
+</p>
 
+```text
+██████╗ ██╗███████╗████████╗██╗  ██╗
+██╔══██╗██║██╔════╝╚══██╔══╝╚██╗██╔╝
+██████╔╝██║█████╗     ██║    ╚███╔╝ 
+██╔══██╗██║██╔══╝     ██║    ██╔██╗ 
+██║  ██║██║██║        ██║   ██╔╝ ██╗
+╚═╝  ╚═╝╚═╝╚═╝        ╚═╝   ╚═╝  ╚═╝
+```
+ </div>
+⎇ explore repos like branches<br>
+⇣ no clone, just pull what you need<br>
+⌁ minimal, fast, terminal-native<br>
 ---
 
 ## Features
@@ -147,3 +167,9 @@ Tokens are also read from env vars: `GITHUB_TOKEN`, `GITLAB_TOKEN`, `CODEBERG_TO
 |-----|--------|
 | `c` | Clear completed / failed entries |
 | `Esc / O / q` | Close panel |
+
+## Acknowledgements
+
+Inspired by [ghgrab](https://github.com/abhixdd/ghgrab), reimagined with a focus on performance, control, and extensibility.
+## License 
+MIT
